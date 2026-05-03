@@ -16,7 +16,8 @@ import {
   Download, 
   RotateCcw,
   Trophy,
-  Target
+  Target,
+  Shield
 } from 'lucide-react';
 import { 
   Radar, 
@@ -37,6 +38,13 @@ const COLORS = {
   bg: '#f8f8f8',
   white: '#FFFFFF',
 };
+
+const Logo = ({ className = "" }: { className?: string }) => (
+  <div className={`flex flex-col text-right ${className}`}>
+    <span className="text-2xl font-black leading-none tracking-tighter uppercase italic">CrossFit</span>
+    <span className="text-[12px] font-black leading-none tracking-[0.3em] uppercase text-red-600 mt-1">Kiryat Gat</span>
+  </div>
+);
 
 export default function App() {
   const [step, setStep] = useState<'welcome' | 'gender' | 'quiz' | 'results'>('welcome');
@@ -172,13 +180,11 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#f8f8f8] text-slate-900 font-sans selection:bg-red-100" dir="rtl">
       {/* Header */}
-      <header className="bg-[#d92228] text-white px-8 py-4 flex flex-col md:flex-row md:items-center justify-between shadow-lg border-b-4 border-[#b91c1c] sticky top-0 z-50">
+      <header className="bg-black text-white px-8 py-4 flex flex-col md:flex-row md:items-center justify-between shadow-lg border-b-4 border-[#d92228] sticky top-0 z-50">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center font-black text-[#d92228] text-xl border-2 border-white">KG</div>
-          <div>
-            <h1 className="text-xl md:text-2xl font-bold tracking-tight leading-none">קרוספיט קרית גת</h1>
-            <p className="text-[10px] md:text-xs font-bold opacity-80 mt-1 uppercase tracking-widest">מחשבון יכולות אתלט</p>
-          </div>
+          <Logo className="scale-90" />
+          <div className="h-8 w-px bg-white/20 hidden md:block"></div>
+          <p className="text-[10px] md:text-xs font-bold opacity-80 uppercase tracking-widest hidden md:block">מחשבון יכולות אתלט</p>
         </div>
         
         <div className="flex items-center gap-4 mt-4 md:mt-0">
@@ -221,6 +227,9 @@ export default function App() {
               exit={{ opacity: 0, y: -10 }}
               className="max-w-xl mx-auto text-center space-y-12 py-20"
             >
+              <div className="flex justify-center mb-16">
+                <Logo className="scale-[2.5]" />
+              </div>
               <div className="space-y-6">
                 <div className="space-y-4">
                   <h2 className="text-5xl font-black text-[#d92228] tracking-tighter uppercase italic">
@@ -346,12 +355,16 @@ export default function App() {
                 style={{ direction: 'rtl' }}
               >
                 {/* Header for Report */}
-                <div className="bg-[#d92228] text-white p-8 md:p-12 flex flex-col md:flex-row justify-between items-center gap-6 border-b-8 border-[#b91c1c]">
-                  <div className="text-center md:text-right">
-                    <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter">קרוספיט קרית גת</h1>
-                    <p className="text-xs md:text-sm font-bold opacity-80 uppercase tracking-widest mt-1 italic">Athlete Performance Report</p>
+                <div className="bg-black text-white p-8 md:p-12 flex flex-col md:flex-row justify-between items-center gap-6 border-b-8 border-[#d92228]">
+                  <div className="flex items-center gap-8 text-center md:text-right">
+                    <Logo className="hidden md:flex" />
+                    <div className="h-10 w-px bg-white/20 hidden md:block"></div>
+                    <div>
+                      <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter">קרוספיט קרית גת</h1>
+                      <p className="text-xs md:text-sm font-bold opacity-80 uppercase tracking-widest mt-1 italic">Athlete Performance Report</p>
+                    </div>
                   </div>
-                  <div className="text-center md:text-left bg-[#b91c1c] p-4 md:p-6 rounded-xl border border-white/20 min-w-[240px]">
+                  <div className="text-center md:text-left bg-zinc-900 p-4 md:p-6 rounded-xl border border-white/20 min-w-[240px]">
                     <p className="text-2xl font-black tracking-tight">{athleteName}</p>
                     <p className="text-[11px] font-bold opacity-90 uppercase tracking-widest mt-1">
                       {gender === 'male' ? 'מתאמן' : 'מתאמנת'} • {new Date().toLocaleDateString('he-IL')}
@@ -420,7 +433,7 @@ export default function App() {
                             Performance Analysis
                           </h3>
                         </div>
-                        <div className="h-[400px] w-full">
+                        <div className="h-[400px] w-full pdf-chart-container">
                           <ResponsiveContainer width="100%" height="100%">
                             <RadarChart cx="50%" cy="50%" outerRadius="75%" data={domainScores}>
                               <PolarGrid stroke="#cbd5e1" />
