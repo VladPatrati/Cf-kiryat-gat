@@ -1,6 +1,6 @@
 {
-  "name": "CrossFit Performance Assessment",
-  "description": "An interactive web app for athletes to track and analyze their performance across multiple CrossFit domains, identifying strengths and areas for improvement.",
+  "name": "CrossFit Kiryat Gat - Athlete Assessment",
+  "description": "דוח ביצועים מקיף למתאמני קרוספיט קרית גת. ניתוח דאטה מתקדם מבוסס AI למציאת נקודות תורפה ושיפור ביצועים.",
   "requestFramePermissions": [],
   "majorCapabilities": []
 }

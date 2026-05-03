@@ -26,6 +26,7 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 import confetti from 'canvas-confetti';
+import { getAthleteAnalysis } from './services/geminiService.ts';
 import { Gender, UserAssessment } from './types.ts';
 import { CATEGORIES, getQuestions } from './constants/questions.ts';
 import { generatePDF } from './lib/pdfUtils.ts';
@@ -44,6 +45,8 @@ export default function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, number>>({});
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+  const [analysis, setAnalysis] = useState<any>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const questions = useMemo(() => (gender ? getQuestions(gender) : []), [gender]);
 
@@ -71,6 +74,40 @@ export default function App() {
         origin: { y: 0.6 },
         colors: [COLORS.primary, '#000000', '#FFFFFF']
       });
+      runAIAnalysis();
+    }
+  };
+
+  const runAIAnalysis = async () => {
+    setIsAnalyzing(true);
+    try {
+      // Calculate scores for prompt
+      const scores = CATEGORIES.map(cat => {
+        const catQuestions = questions.filter(q => q.category === cat.id);
+        const totalPossible = catQuestions.length * 3;
+        const actualScore = catQuestions.reduce((acc, q) => acc + (responses[q.id] || 0), 0);
+        const pct = (actualScore / totalPossible) * 100;
+        return {
+          subject: cat.title,
+          score: Math.round(pct),
+          level: pct >= 85 ? 'ELITE' : pct >= 70 ? 'RX+' : pct >= 40 ? 'RX' : 'SCALED'
+        };
+      });
+
+      const total = scores.reduce((acc, s) => acc + s.score, 0);
+      const avg = Math.round(total / scores.length);
+
+      const result = await getAthleteAnalysis({
+        name: athleteName,
+        gender: gender || 'male',
+        scores: scores,
+        overallScore: avg
+      });
+      setAnalysis(result);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsAnalyzing(false);
     }
   };
 
@@ -305,152 +342,226 @@ export default function App() {
             >
               <div 
                 id="results-container" 
-                className={`bg-white rounded-3xl overflow-hidden ${isGeneratingPdf ? '' : 'shadow-2xl'} border border-slate-200`}
+                className="bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-200"
                 style={{ direction: 'rtl' }}
               >
                 {/* Header for Report */}
                 <div className="bg-[#d92228] text-white p-8 md:p-12 flex flex-col md:flex-row justify-between items-center gap-6 border-b-8 border-[#b91c1c]">
                   <div className="text-center md:text-right">
-                    <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter">CrossFit Kiryat Gat</h1>
-                    <p className="text-xs md:text-sm font-bold opacity-80 uppercase tracking-widest mt-1">Athlete Performance Report</p>
+                    <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tighter">קרוספיט קרית גת</h1>
+                    <p className="text-xs md:text-sm font-bold opacity-80 uppercase tracking-widest mt-1 italic">Athlete Performance Report</p>
                   </div>
-                  <div className="text-center md:text-left bg-[#b91c1c] p-4 rounded-xl border border-white/10 min-w-[200px]">
-                    <p className="text-xl font-black">{athleteName}</p>
-                    <p className="text-[11px] font-bold opacity-80 uppercase tracking-widest mt-1">
+                  <div className="text-center md:text-left bg-[#b91c1c] p-4 md:p-6 rounded-xl border border-white/20 min-w-[240px]">
+                    <p className="text-2xl font-black tracking-tight">{athleteName}</p>
+                    <p className="text-[11px] font-bold opacity-90 uppercase tracking-widest mt-1">
                       {gender === 'male' ? 'מתאמן' : 'מתאמנת'} • {new Date().toLocaleDateString('he-IL')}
                     </p>
                   </div>
                 </div>
 
-                <div className="p-6 md:p-10 grid grid-cols-1 lg:grid-cols-3 gap-8">
-                {/* Score Panel */}
-                <div className="col-span-1">
-                  <section className="bg-white border-2 border-[#d92228] rounded-xl shadow-lg flex flex-col relative h-full">
-                    <div className="absolute top-4 left-4 opacity-10 font-black text-5xl pointer-events-none">RESULTS</div>
-                    <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-10">
-                      <div className="relative w-56 h-56 border-8 border-[#d92228]/10 rounded-full flex items-center justify-center">
-                        <svg className="absolute inset-0 w-full h-full -rotate-90">
-                          <circle
-                            cx="112" cy="112" r="104"
-                            fill="none" stroke="#d92228"
-                            strokeWidth="8"
-                            strokeDasharray="653.45"
-                            strokeDashoffset={653.45 - (653.45 * overallScore) / 100}
-                            strokeLinecap="round"
-                          />
-                        </svg>
-                        <div className="text-center z-10">
-                          <span className="text-6xl font-black text-[#d92228] tracking-tighter">{overallScore}</span>
-                          <span className="text-xl font-bold text-slate-400">/100</span>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-500 mt-2">Overall Athlete Score</p>
-                        </div>
-                      </div>
-
-                      <div className="w-full space-y-6">
-                        {domainScores.map((score, idx) => (
-                          <div key={idx} className="space-y-1.5">
-                            <div className="flex justify-between text-[11px] font-black uppercase tracking-wider">
-                              <span className="text-slate-500">{score.subject}</span>
-                              <span className="text-[#d92228]">{score.A >= 90 ? 'ELITE' : score.A >= 70 ? 'RX+' : score.A >= 40 ? 'COMP' : 'SCALED'}</span>
-                            </div>
-                            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                              <motion.div 
-                                initial={{ width: 0 }}
-                                animate={{ width: `${score.A}%` }}
-                                className={`h-full ${score.A >= 70 ? 'bg-[#d92228]' : 'bg-slate-400'}`}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="text-center p-5 bg-slate-50 rounded-xl border border-slate-200 w-full">
-                        <p className="text-xs font-black text-slate-700 mb-2 uppercase tracking-wide">תובנת מאמן:</p>
-                        <p className="text-xs text-slate-500 leading-relaxed italic font-medium">
-                          "יש לך בסיס מצוין בתחומים החזקים שלך. עם זאת, כדי להפוך לאתלט מאוזן יותר, המיקוד הבא שלך חייב להיות 
-                          שיפור ה- {getFocusArea()?.subject}. המשך להתאמן בעקביות!"
-                        </p>
-                      </div>
-                    </div>
-                  </section>
-                </div>
-
-                {/* Radar and Detailed Cards */}
-                <div className="lg:col-span-2 space-y-6">
-                   <div className="bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
-                      <div className="flex items-center justify-between mb-8 border-b border-slate-100 pb-4">
-                        <h3 className="font-black text-slate-800 uppercase tracking-tight">Performance Breakdown</h3>
-                        <div className="flex gap-2">
-                           <div className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-[#d92228]"></span><span className="text-[10px] font-bold text-slate-400 uppercase">Score</span></div>
-                        </div>
-                      </div>
-                      <div className="h-[350px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <RadarChart cx="50%" cy="50%" outerRadius="80%" data={domainScores}>
-                            <PolarGrid stroke="#e5e7eb" />
-                            <PolarAngleAxis dataKey="subject" tick={{ fill: '#4B5563', fontSize: 13, fontWeight: 800 }} />
-                            <Radar
-                              name="Score"
-                              dataKey="A"
-                              stroke={COLORS.primary}
-                              fill={COLORS.primary}
-                              fillOpacity={0.4}
+                <div className="p-6 md:p-10 lg:p-12">
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                    {/* Score Panel */}
+                    <div className="col-span-1">
+                      <section className="bg-white border-4 border-[#d92228]/10 rounded-2xl p-8 flex flex-col items-center justify-center space-y-10 relative overflow-hidden h-full">
+                        <div className="absolute -top-6 -left-6 opacity-[0.03] font-black text-8xl pointer-events-none rotate-12">SCORE</div>
+                        
+                        <div className="relative w-56 h-56 flex items-center justify-center">
+                          <svg className="absolute inset-0 w-full h-full -rotate-90">
+                            <circle
+                              cx="112" cy="112" r="102"
+                              fill="none" stroke="#f1f5f9"
+                              strokeWidth="12"
                             />
-                          </RadarChart>
-                        </ResponsiveContainer>
-                      </div>
-                   </div>
+                            <motion.circle
+                              cx="112" cy="112" r="102"
+                              fill="none" stroke="#d92228"
+                              strokeWidth="12"
+                              strokeDasharray="640.88"
+                              initial={{ strokeDashoffset: 640.88 }}
+                              animate={{ strokeDashoffset: 640.88 - (640.88 * overallScore) / 100 }}
+                              transition={{ duration: 1.5, ease: "easeOut" }}
+                              strokeLinecap="round"
+                            />
+                          </svg>
+                          <div className="text-center z-10">
+                            <span className="text-7xl font-black text-[#d92228] tracking-tighter">{overallScore}</span>
+                            <span className="text-xl font-bold text-slate-400">/100</span>
+                            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 mt-2">Overall Fitness</p>
+                          </div>
+                        </div>
 
-                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {CATEGORIES.map(cat => {
-                        const score = domainScores.find(s => s.subject === cat.title);
-                        return (
-                          <section key={cat.id} className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden flex flex-col">
-                            <div className="bg-[#f1f1f1] px-4 py-3 border-b border-slate-200 flex justify-between items-center">
-                              <h2 className="font-black text-xs text-slate-700 uppercase tracking-widest">{cat.title}</h2>
-                              <span className="text-[10px] bg-slate-400 text-white px-2 py-0.5 rounded font-bold uppercase">
-                                {score?.raw}/{score?.maxRaw}
-                              </span>
+                        <div className="w-full space-y-6">
+                          {domainScores.map((score, idx) => (
+                            <div key={idx} className="space-y-2">
+                              <div className="flex justify-between text-[11px] font-black uppercase tracking-widest">
+                                <span className="text-slate-500">{score.subject}</span>
+                                <span className="text-[#d92228]">{score.A >= 85 ? 'ELITE' : score.A >= 70 ? 'RX+' : score.A >= 40 ? 'RX' : 'SCALED'}</span>
+                              </div>
+                              <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
+                                <motion.div 
+                                  initial={{ width: 0 }}
+                                  animate={{ width: `${score.A}%` }}
+                                  className={`h-full ${score.A >= 70 ? 'bg-[#d92228]' : 'bg-slate-400'}`}
+                                />
+                              </div>
                             </div>
-                            <div className="p-5 flex-1 flex flex-col justify-center gap-4">
-                              <div className="flex items-center gap-4">
-                                <div className={`w-10 h-10 rounded flex items-center justify-center font-black text-sm ${score && score.A >= 60 ? 'bg-[#d92228] text-white' : 'bg-slate-100 text-slate-400'}`}>
-                                  {score ? Math.round(score.A) : 0}%
+                          ))}
+                        </div>
+                      </section>
+                    </div>
+
+                    {/* Radar and Recommendations */}
+                    <div className="lg:col-span-2 space-y-8">
+                      <div className="bg-slate-50 border border-slate-200 rounded-2xl p-8 shadow-inner relative overflow-hidden">
+                        <div className="flex items-center justify-between mb-8 border-b border-slate-200 pb-4">
+                          <h3 className="font-black text-slate-700 uppercase tracking-tight flex items-center gap-2">
+                            <User size={18} className="text-[#d92228]" />
+                            Performance Analysis
+                          </h3>
+                        </div>
+                        <div className="h-[400px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <RadarChart cx="50%" cy="50%" outerRadius="75%" data={domainScores}>
+                              <PolarGrid stroke="#cbd5e1" />
+                              <PolarAngleAxis 
+                                dataKey="subject" 
+                                tick={{ fill: '#334155', fontSize: 13, fontWeight: 900 }} 
+                              />
+                              <Radar
+                                name="Score"
+                                dataKey="A"
+                                stroke="#d92228"
+                                strokeWidth={3}
+                                fill="#d92228"
+                                fillOpacity={0.4}
+                              />
+                            </RadarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-[#1e293b] text-white p-8 rounded-2xl shadow-lg border-b-4 border-[#d92228] relative overflow-hidden">
+                          <div className="absolute top-0 right-0 p-4 opacity-10">
+                            <Sparkles size={64} />
+                          </div>
+                          <div className="flex items-center gap-3 mb-6">
+                            <Zap size={24} className="text-[#d92228]" />
+                            <h4 className="font-black text-lg uppercase tracking-widest">תובנות מאמן AI</h4>
+                          </div>
+                          
+                          {isAnalyzing ? (
+                            <div className="space-y-4 animate-pulse">
+                              <div className="h-4 bg-slate-700 rounded w-full"></div>
+                              <div className="h-4 bg-slate-700 rounded w-5/6"></div>
+                              <div className="h-4 bg-slate-700 rounded w-4/6"></div>
+                            </div>
+                          ) : analysis ? (
+                            <div className="space-y-6">
+                              <p className="text-base font-bold leading-relaxed border-r-2 border-[#d92228] pr-4">{analysis.summary}</p>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-700">
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-[#d92228] mb-2">נקודות חוזק</p>
+                                  <ul className="space-y-1">
+                                    {analysis.strengths.map((s: string, i: number) => (
+                                      <li key={i} className="text-xs font-bold flex items-center gap-2">
+                                        <div className="w-1 h-1 bg-green-500 rounded-full"></div>
+                                        {s}
+                                      </li>
+                                    ))}
+                                  </ul>
                                 </div>
-                                <div className="flex-1 space-y-1">
-                                  <div className="w-full h-1.5 bg-slate-100 rounded-full">
-                                    <div className="h-full bg-[#d92228]" style={{ width: `${score?.A}%` }} />
-                                  </div>
-                                  <p className="text-[9px] font-black text-slate-400 uppercase">Categorical Dominance</p>
+                                <div>
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-[#d92228] mb-2">טיפים לשיפור: {analysis.weaknessArea}</p>
+                                  <ul className="space-y-1">
+                                    {analysis.tips.map((t: string, i: number) => (
+                                      <li key={i} className="text-xs font-bold flex items-center gap-2">
+                                        <div className="w-1 h-1 bg-yellow-500 rounded-full"></div>
+                                        {t}
+                                      </li>
+                                    ))}
+                                  </ul>
                                 </div>
                               </div>
                             </div>
-                          </section>
-                        );
-                      })}
+                          ) : (
+                            <p className="text-sm opacity-60 italic">טוען ניתוח מתקדם...</p>
+                          )}
+                        </div>
+
+                        <div className="bg-white border-2 border-slate-100 p-8 rounded-2xl flex flex-col justify-center min-h-[140px]">
+                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">מוטיבציה יומית</p>
+                          <blockquote className="text-xl font-black text-slate-800 italic leading-tight">
+                            "{analysis?.motivationalQuote || 'הדרך לפסגה מתחילה באימון של היום.'}"
+                          </blockquote>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Level Legend */}
+                  <div className="mt-10 grid grid-cols-2 md:grid-cols-4 gap-4 bg-slate-50 p-6 rounded-xl border border-slate-200">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-[#d92228]"></div>
+                      <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">ELITE (85%+)</p>
+                        <p className="text-[10px] font-bold text-slate-600">רמה תחרותית ארצית</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-slate-800"></div>
+                      <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">RX+ (70-84%)</p>
+                        <p className="text-[10px] font-bold text-slate-600">רמה גבוהה מאוד</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-slate-400"></div>
+                      <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">RX (40-69%)</p>
+                        <p className="text-[10px] font-bold text-slate-600">מבצע אימונים כפי שנכתבו</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-slate-200"></div>
+                      <div>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">SCALED (0-39%)</p>
+                        <p className="text-[10px] font-bold text-slate-600">מיקוד בבניית יסודות</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-12 flex justify-between items-center text-[10px] text-slate-400 font-black uppercase tracking-[0.3em] px-2 pt-8 border-t border-slate-100">
+                    <div className="flex gap-8">
+                      <span>DATE: {new Date().toLocaleDateString('he-IL')}</span>
+                      <span>VERSION: 2.5.0_PRO</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                       VERIFIED BY KG SYSTEM
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <footer className="mt-12 mb-8 flex justify-between items-center text-[10px] text-slate-400 font-bold uppercase tracking-widest px-2">
-                <div className="flex gap-6">
-                  <span>תאריך עדכון: {new Date().toLocaleDateString('he-IL')}</span>
-                  <span>גרסה: 2.1.0</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                  מחובר למערכת קרית גת
-                </div>
-              </footer>
-
-              <div className="flex justify-center pb-12">
+              {/* Action Buttons - Visible only on screen */}
+              <div className="flex flex-col md:flex-row justify-center items-center gap-4 mt-12 pb-16 no-print">
+                <button 
+                  onClick={handleDownloadPdf}
+                  disabled={isGeneratingPdf}
+                  className="w-full md:w-auto bg-[#d92228] text-white px-10 py-4 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-[#b91c1c] transition-all flex items-center justify-center gap-3 shadow-xl shadow-red-100"
+                >
+                  {isGeneratingPdf ? <RotateCcw className="animate-spin" size={18} /> : <Download size={18} />}
+                  {isGeneratingPdf ? 'מייצר דוח...' : 'הורד דוח ביצועים PDF'}
+                </button>
                 <button 
                   onClick={reset}
-                  className="bg-black text-white px-8 py-3 rounded font-black text-xs uppercase tracking-[0.2em] hover:bg-zinc-800 transition-all flex items-center gap-3"
+                  className="w-full md:w-auto bg-slate-900 text-white px-10 py-4 rounded-xl font-black text-sm uppercase tracking-widest hover:bg-black transition-all flex items-center justify-center gap-3"
                 >
-                  <RotateCcw size={14} />
-                  התחל מבדק חדש
+                  <RotateCcw size={18} />
+                  מבדק חדש
                 </button>
               </div>
             </motion.div>
