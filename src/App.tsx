@@ -27,10 +27,9 @@ import {
   ResponsiveContainer 
 } from 'recharts';
 import confetti from 'canvas-confetti';
-import { getAthleteAnalysis } from './services/geminiService.ts';
-import { Gender, UserAssessment } from './types.ts';
-import { CATEGORIES, getQuestions } from './constants/questions.ts';
-import { generatePDF } from './lib/pdfUtils.ts';
+import { Gender, UserAssessment } from './types';
+import { CATEGORIES, getQuestions } from './constants/questions';
+import { generatePDF } from './lib/pdfUtils';
 
 const COLORS = {
   primary: '#d92228', // Technical Red
@@ -53,8 +52,6 @@ export default function App() {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [responses, setResponses] = useState<Record<string, number>>({});
   const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
-  const [analysis, setAnalysis] = useState<any>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const questions = useMemo(() => (gender ? getQuestions(gender) : []), [gender]);
 
@@ -82,40 +79,6 @@ export default function App() {
         origin: { y: 0.6 },
         colors: [COLORS.primary, '#000000', '#FFFFFF']
       });
-      runAIAnalysis();
-    }
-  };
-
-  const runAIAnalysis = async () => {
-    setIsAnalyzing(true);
-    try {
-      // Calculate scores for prompt
-      const scores = CATEGORIES.map(cat => {
-        const catQuestions = questions.filter(q => q.category === cat.id);
-        const totalPossible = catQuestions.length * 3;
-        const actualScore = catQuestions.reduce((acc, q) => acc + (responses[q.id] || 0), 0);
-        const pct = (actualScore / totalPossible) * 100;
-        return {
-          subject: cat.title,
-          score: Math.round(pct),
-          level: pct >= 85 ? 'ELITE' : pct >= 70 ? 'RX+' : pct >= 40 ? 'RX' : 'SCALED'
-        };
-      });
-
-      const total = scores.reduce((acc, s) => acc + s.score, 0);
-      const avg = Math.round(total / scores.length);
-
-      const result = await getAthleteAnalysis({
-        name: athleteName,
-        gender: gender || 'male',
-        scores: scores,
-        overallScore: avg
-      });
-      setAnalysis(result);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setIsAnalyzing(false);
     }
   };
 
@@ -455,61 +418,36 @@ export default function App() {
                       </div>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className="bg-[#1e293b] text-white p-8 rounded-2xl shadow-lg border-b-4 border-[#d92228] relative overflow-hidden">
-                          <div className="absolute top-0 right-0 p-4 opacity-10">
-                            <Sparkles size={64} />
-                          </div>
-                          <div className="flex items-center gap-3 mb-6">
-                            <Zap size={24} className="text-[#d92228]" />
-                            <h4 className="font-black text-lg uppercase tracking-widest">תובנות מאמן AI</h4>
-                          </div>
+                      <div className="bg-[#1e293b] text-white p-8 rounded-2xl shadow-lg border-b-4 border-[#d92228] relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-4 opacity-10">
+                          <Trophy size={64} />
+                        </div>
+                        <div className="flex items-center gap-3 mb-6">
+                          <Sparkles size={24} className="text-[#d92228]" />
+                          <h4 className="font-black text-lg uppercase tracking-widest">סיכום ביצועים</h4>
+                        </div>
+                        
+                        <div className="space-y-6">
+                          <p className="text-base font-bold leading-relaxed border-r-2 border-[#d92228] pr-4 text-slate-200">
+                             כל הכבוד על סיום המבדק! הנתונים מראים את רמת הכושר הנוכחית שלך בחמישה תחומים קריטיים. השתמש בתוצאות אלו כדי לבנות תוכנית עבודה ממוקדת יחד עם המאמנים בבוקס.
+                          </p>
                           
-                          {isAnalyzing ? (
-                            <div className="space-y-4 animate-pulse">
-                              <div className="h-4 bg-slate-700 rounded w-full"></div>
-                              <div className="h-4 bg-slate-700 rounded w-5/6"></div>
-                              <div className="h-4 bg-slate-700 rounded w-4/6"></div>
+                          <div className="pt-4 border-t border-slate-700">
+                            <p className="text-[10px] font-black uppercase tracking-widest text-[#d92228] mb-2">תחום למיקוד</p>
+                            <div className="flex items-center justify-between">
+                              <span className="text-sm font-bold">{getFocusArea()?.subject}</span>
+                              <span className="text-xs bg-[#d92228] px-2 py-0.5 rounded font-black">{Math.round(getFocusArea()?.A)}%</span>
                             </div>
-                          ) : analysis ? (
-                            <div className="space-y-6">
-                              <p className="text-base font-bold leading-relaxed border-r-2 border-[#d92228] pr-4">{analysis.summary}</p>
-                              
-                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-4 border-t border-slate-700">
-                                <div>
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-[#d92228] mb-2">נקודות חוזק</p>
-                                  <ul className="space-y-1">
-                                    {analysis.strengths.map((s: string, i: number) => (
-                                      <li key={i} className="text-xs font-bold flex items-center gap-2">
-                                        <div className="w-1 h-1 bg-green-500 rounded-full"></div>
-                                        {s}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-[#d92228] mb-2">טיפים לשיפור: {analysis.weaknessArea}</p>
-                                  <ul className="space-y-1">
-                                    {analysis.tips.map((t: string, i: number) => (
-                                      <li key={i} className="text-xs font-bold flex items-center gap-2">
-                                        <div className="w-1 h-1 bg-yellow-500 rounded-full"></div>
-                                        {t}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-sm opacity-60 italic">טוען ניתוח מתקדם...</p>
-                          )}
+                          </div>
                         </div>
+                      </div>
 
-                        <div className="bg-white border-2 border-slate-100 p-8 rounded-2xl flex flex-col justify-center min-h-[140px]">
-                          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">מוטיבציה יומית</p>
-                          <blockquote className="text-xl font-black text-slate-800 italic leading-tight">
-                            "{analysis?.motivationalQuote || 'הדרך לפסגה מתחילה באימון של היום.'}"
-                          </blockquote>
-                        </div>
+                      <div className="bg-white border-2 border-slate-100 p-8 rounded-2xl flex flex-col justify-center min-h-[140px]">
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4">מוטיבציה יומית</p>
+                        <blockquote className="text-xl font-black text-slate-800 italic leading-tight">
+                          "הדרך לפסגה מתחילה באימון של היום."
+                        </blockquote>
+                      </div>
                       </div>
                     </div>
                   </div>
