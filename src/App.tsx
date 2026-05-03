@@ -118,9 +118,15 @@ export default function App() {
   };
 
   const handleDownloadPdf = async () => {
+    console.log('Download button clicked');
     setIsGeneratingPdf(true);
     try {
+      // Small delay to ensure isGeneratingPdf state has propagated to DOM if needed
+      await new Promise(r => setTimeout(r, 100));
       await generatePDF('results-container', athleteName || 'CrossFit_Kiryat_Gat');
+    } catch (err) {
+      console.error('Download handler error:', err);
+      alert('שגיאה בהורדה');
     } finally {
       setIsGeneratingPdf(false);
     }
@@ -297,7 +303,11 @@ export default function App() {
               animate={{ opacity: 1 }}
               className="max-w-6xl mx-auto"
             >
-              <div id="results-container" className="bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-200">
+              <div 
+                id="results-container" 
+                className={`bg-white rounded-3xl overflow-hidden ${isGeneratingPdf ? '' : 'shadow-2xl'} border border-slate-200`}
+                style={{ direction: 'rtl' }}
+              >
                 {/* Header for Report */}
                 <div className="bg-[#d92228] text-white p-8 md:p-12 flex flex-col md:flex-row justify-between items-center gap-6 border-b-8 border-[#b91c1c]">
                   <div className="text-center md:text-right">
