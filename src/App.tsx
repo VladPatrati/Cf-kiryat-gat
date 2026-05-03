@@ -142,6 +142,17 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f8f8f8] text-slate-900 font-sans selection:bg-red-100" dir="rtl">
+      {/* Full screen loader for PDF generation */}
+      {isGeneratingPdf && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-md z-[100] flex flex-col items-center justify-center text-white text-center p-6">
+          <div className="w-20 h-20 border-4 border-[#d92228] border-t-transparent rounded-full animate-spin mb-8"></div>
+          <h2 className="text-3xl font-black uppercase italic tracking-tighter mb-2">מייצר דוח ביצועים...</h2>
+          <p className="text-slate-300 font-bold max-w-xs">
+            אנחנו מכינים את הנתונים שלך. זה עשוי לקחת כמה שניות, במיוחד בנייד.
+          </p>
+        </div>
+      )}
+
       {/* Header */}
       <header className="bg-black text-white px-8 py-4 flex flex-col md:flex-row md:items-center justify-between shadow-lg border-b-4 border-[#d92228] sticky top-0 z-50">
         <div className="flex items-center gap-4">

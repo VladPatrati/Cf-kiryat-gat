@@ -12,15 +12,17 @@ export const generatePDF = async (elementId: string, athleteName: string = 'Athl
   try {
     console.log('Generating high-quality PDF for:', athleteName);
     
-    // Wait for everything to settle
-    await new Promise(resolve => setTimeout(resolve, 800));
+    // Wait for everything to settle (animations etc)
+    // The score circle has a 1.5s animation, so we wait long enough
+    await new Promise(resolve => setTimeout(resolve, 1800));
 
     const canvas = await html2canvas(element, {
-      scale: 3, // High resolution for quality print
+      scale: 1.25, // Conservative scale for mobile stability
       useCORS: true,
+      allowTaint: true,
       logging: false,
       backgroundColor: '#ffffff',
-      windowWidth: 1200, // Force desktop-width layout even on mobile phones
+      windowWidth: 1000, 
       scrollX: 0,
       scrollY: 0,
       onclone: (clonedDoc) => {
@@ -28,10 +30,10 @@ export const generatePDF = async (elementId: string, athleteName: string = 'Athl
         if (clonedElement) {
           // Force layout stabilization for the capture
           clonedElement.style.display = 'block';
-          clonedElement.style.width = '1200px'; 
+          clonedElement.style.width = '1000px'; 
           clonedElement.style.height = 'auto';
           clonedElement.style.margin = '0';
-          clonedElement.style.padding = '50px';
+          clonedElement.style.padding = '30px';
           clonedElement.style.borderRadius = '0';
           clonedElement.style.boxShadow = 'none';
           clonedElement.style.direction = 'rtl';
@@ -43,39 +45,56 @@ export const generatePDF = async (elementId: string, athleteName: string = 'Athl
             el.style.direction = 'rtl';
             el.style.boxShadow = 'none';
             el.style.textShadow = 'none';
-            // Force fonts
-            el.style.fontFamily = '"Assistant", "Inter", sans-serif';
+            el.style.fontFamily = 'Assistant, system-ui, sans-serif';
           });
 
           // Hide UI elements that shouldn't be in PDF
           const noPrint = clonedElement.querySelectorAll('.no-print');
           noPrint.forEach((el: any) => el.style.display = 'none');
           
-          // Force chart responsiveness
+          // Force chart responsiveness for capture
           const charts = clonedElement.querySelectorAll('.pdf-chart-container, .recharts-responsive-container');
           charts.forEach((chart: any) => {
-            chart.style.width = '1100px';
-            chart.style.maxWidth = '1100px';
-            chart.style.height = '450px';
-            chart.style.minHeight = '450px';
+            chart.style.width = '940px';
+            chart.style.height = '400px';
+            chart.style.minHeight = '400px';
             chart.style.display = 'block';
             chart.style.overflow = 'visible';
+          });
+
+          // Ensure charts internally are also forced to size
+          const svgs = clonedElement.querySelectorAll('svg');
+          svgs.forEach((svg: any) => {
+            svg.setAttribute('width', '940');
+            svg.setAttribute('height', '400');
           });
 
           // Fix specifically for the radar chart which can be finicky
           const radar = clonedElement.querySelector('.recharts-wrapper');
           if (radar) {
              (radar as HTMLElement).style.margin = '0 auto';
+             (radar as HTMLElement).style.width = '940px';
           }
 
-          // Ensure full contrast for black text
-          const blacks = clonedElement.querySelectorAll('.text-slate-900, .text-slate-800, .text-slate-700');
-          blacks.forEach((el: any) => el.style.color = '#000000');
+          // Ensure full contrast for black text or dark text
+          const textElements = clonedElement.querySelectorAll('.text-slate-900, .text-slate-800, .text-slate-700, .text-slate-600');
+          textElements.forEach((el: any) => el.style.color = '#000000');
         }
       }
     });
 
-    const imgData = canvas.toDataURL('image/jpeg', 1.0);
+    // Check if canvas was created correctly
+    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+      throw new Error('Canvas was not created correctly');
+    }
+
+    const imgData = canvas.toDataURL('image/png');
+    
+    // Check if image data is valid
+    if (!imgData || imgData.length < 100) {
+       throw new Error('Failed to generate image data from canvas');
+    }
+
     const pdf = new jsPDF({
       orientation: 'portrait',
       unit: 'mm',
@@ -107,7 +126,7 @@ export const generatePDF = async (elementId: string, athleteName: string = 'Athl
     const marginX = (pdfWidth - finalWidth) / 2;
     const marginY = 10; 
 
-    pdf.addImage(imgData, 'JPEG', marginX, marginY, finalWidth, finalHeight, undefined, 'FAST');
+    pdf.addImage(imgData, 'PNG', marginX, marginY, finalWidth, finalHeight, undefined, 'FAST');
     
     const fileName = `CrossFit_Report_${athleteName.replace(/\s+/g, '_')}.pdf`;
     pdf.save(fileName);
