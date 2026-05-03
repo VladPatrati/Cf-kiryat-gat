@@ -1,0 +1,6 @@
+{
+  "name": "CrossFit Performance Assessment",
+  "description": "An interactive web app for athletes to track and analyze their performance across multiple CrossFit domains, identifying strengths and areas for improvement.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
